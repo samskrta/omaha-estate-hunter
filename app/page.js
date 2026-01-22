@@ -434,7 +434,13 @@ export default function OmahaEstateSales() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/sales');
+      // Fetch directly from EstateSales.NET API (client-side works, server-side gets blocked)
+      const OMAHA_LAT = 41.252363;
+      const OMAHA_LNG = -95.997988;
+      const SEARCH_RADIUS_MILES = 100;
+      const API_URL = `https://www.estatesales.net/api/sale-details?bypass=bycoordinatesanddistance:${OMAHA_LAT}_${OMAHA_LNG}_${SEARCH_RADIUS_MILES}&include=mainpicture,dates,salecategories&select=id,orgName,address,cityName,name,type,typeName,pictureCount,mainPicture,dates,postalCodeNumber,stateCode,firstLocalStartDate,lastLocalEndDate,phoneNumbers,orgLogoUrl,description,saleCategories&explicitTypes=DateTime`;
+
+      const response = await fetch(API_URL);
       if (!response.ok) throw new Error('Failed to fetch sales');
       const data = await response.json();
       const transformedSales = data.map(transformSaleData);
