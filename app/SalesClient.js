@@ -370,8 +370,8 @@ function SaleCard({ sale, companies, onClick, isExpanded, onGalleryClick }) {
   );
 }
 
-export default function SalesClient({ initialSales, initialTimestamp }) {
-  const [sales, setSales] = useState(initialSales);
+export default function SalesClient({ initialSales = [], initialTimestamp = Date.now() }) {
+  const [sales, setSales] = useState(initialSales || []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(new Date(initialTimestamp));
@@ -407,10 +407,13 @@ export default function SalesClient({ initialSales, initialTimestamp }) {
   };
 
   const allCompanies = useMemo(() => {
+    if (!sales || !Array.isArray(sales)) return [];
     return [...new Set(sales.map(s => s.company))].sort();
   }, [sales]);
 
   const processedSales = useMemo(() => {
+    if (!sales || !Array.isArray(sales)) return [];
+
     let filtered = [...sales];
     if (filterCompany !== 'all') {
       filtered = filtered.filter(s => s.company === filterCompany);

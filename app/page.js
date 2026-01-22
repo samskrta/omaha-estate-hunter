@@ -84,12 +84,22 @@ function transformSaleData(apiSale) {
   };
 }
 
+// Omaha metro coordinates
+const OMAHA_LAT = 41.252363;
+const OMAHA_LNG = -95.997988;
+const SEARCH_RADIUS_MILES = 100;
+
 async function getSales() {
   try {
-    // Fetch from the API route during server-side rendering
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    const response = await fetch(`${baseUrl}/api/sales`, {
+    // Fetch directly from EstateSales.NET during SSR (no CORS issues on server)
+    const API_URL = `https://www.estatesales.net/api/sale-details?bypass=bycoordinatesanddistance:${OMAHA_LAT}_${OMAHA_LNG}_${SEARCH_RADIUS_MILES}&include=mainpicture,dates,salecategories&explicitTypes=DateTime`;
+
+    const response = await fetch(API_URL, {
       cache: 'no-store', // Always fetch fresh data
+      headers: {
+        'Accept': 'application/json, text/plain, */*',
+        'User-Agent': 'Mozilla/5.0 (compatible)',
+      },
     });
 
     if (!response.ok) {
