@@ -1,0 +1,24 @@
+scraper:
+  download_dir: ./data/sales
+  request_delay_min: 1.0
+  request_delay_max: 3.0
+  page_timeout: 30
+  photo_timeout: 10
+  max_retries: 3
+
+analyzer:
+  model: claude-sonnet-4-5-20250929   # or claude-opus-4-6 for accuracy mode
+  max_concurrency: 3
+  min_value_threshold: 5              # Skip items estimated under $5
+  context_template: "Estate sale in {location}"
+
+pricer:
+  cache_ttl_days: 7
+  max_comps: 20
+  outlier_std_devs: 2
+  broadening_threshold: 3             # Broaden query if fewer than this many results
+
+output:
+  default_format: terminal
+  default_sort: value
+  currency: USD
