@@ -370,7 +370,17 @@ function AnalysisResults({ sale, analysis, loading, error, onClose }) {
                       key={idx}
                       className="border border-gray-200 rounded-lg p-4 hover:border-purple-300 hover:shadow-sm transition-all"
                     >
-                      <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        {item.photoUrl && (
+                          <div className="flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-gray-100">
+                            <img
+                              src={item.photoUrl}
+                              alt={item.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => { e.target.style.display = 'none'; }}
+                            />
+                          </div>
+                        )}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap mb-1">
                             <h4 className="font-semibold text-gray-900">{item.name}</h4>
