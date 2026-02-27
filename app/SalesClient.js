@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Star, MapPin, Calendar, Camera, Building2, TrendingUp, Filter, ChevronDown, ChevronUp, Plus, Edit2, Trash2, X, Check, ExternalLink, Clock, RefreshCw, Loader2, Map as MapIcon, List, Image } from 'lucide-react';
+import { Star, MapPin, Calendar, Camera, Building2, TrendingUp, Filter, ChevronDown, ChevronUp, Plus, Edit2, Trash2, X, Check, ExternalLink, Clock, RefreshCw, Loader2, Map as MapIcon, List, Image, Zap, DollarSign, Tag, Package, AlertCircle } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import ImageGallery from './ImageGallery';
 
@@ -256,7 +256,245 @@ function CompanyManager({ companies, setCompanies, onClose, allSaleCompanies }) 
   );
 }
 
-function SaleCard({ sale, companies, onClick, isExpanded, onGalleryClick }) {
+// Category icons/colors for analysis results
+const categoryColors = {
+  furniture: 'bg-amber-100 text-amber-800',
+  electronics: 'bg-blue-100 text-blue-800',
+  appliances: 'bg-gray-100 text-gray-800',
+  kitchenware: 'bg-orange-100 text-orange-800',
+  art: 'bg-purple-100 text-purple-800',
+  collectibles: 'bg-pink-100 text-pink-800',
+  tools: 'bg-slate-100 text-slate-800',
+  clothing: 'bg-rose-100 text-rose-800',
+  jewelry: 'bg-yellow-100 text-yellow-800',
+  books: 'bg-emerald-100 text-emerald-800',
+  toys: 'bg-indigo-100 text-indigo-800',
+  sporting_goods: 'bg-green-100 text-green-800',
+  other: 'bg-gray-100 text-gray-800',
+};
+
+const confidenceColors = {
+  high: 'text-green-600',
+  medium: 'text-yellow-600',
+  low: 'text-red-500',
+};
+
+function AnalysisResults({ sale, analysis, loading, error, onClose }) {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="p-5 border-b border-gray-200 bg-gradient-to-r from-purple-600 to-indigo-700 text-white">
+          <div className="flex justify-between items-start">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Zap className="w-5 h-5" />
+                <h2 className="text-xl font-bold">Sale Analysis</h2>
+              </div>
+              <p className="text-purple-100 text-sm">{sale.title}</p>
+              <p className="text-purple-200 text-xs mt-1">{sale.company} &bull; {sale.address}</p>
+            </div>
+            <button onClick={onClose} className="p-2 hover:bg-white hover:bg-opacity-20 rounded-full">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-5">
+          {loading && (
+            <div className="text-center py-16">
+              <Loader2 className="w-12 h-12 animate-spin mx-auto text-purple-500 mb-4" />
+              <p className="text-gray-700 font-medium mb-2">Analyzing sale photos with AI...</p>
+              <p className="text-gray-500 text-sm">Identifying items and estimating resale values</p>
+              <p className="text-gray-400 text-xs mt-4">This may take 30-60 seconds</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="text-center py-12">
+              <AlertCircle className="w-12 h-12 mx-auto text-red-400 mb-4" />
+              <p className="text-red-600 font-medium mb-2">Analysis Failed</p>
+              <p className="text-gray-500 text-sm">{error}</p>
+            </div>
+          )}
+
+          {!loading && !error && analysis && (
+            <>
+              {/* Summary banner */}
+              <div className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-200">
+                <div className={`grid grid-cols-2 ${analysis.summary.ebayAvailable ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} gap-4 text-center`}>
+                  <div>
+                    <p className="text-2xl font-bold text-purple-700">{analysis.summary.itemsFound}</p>
+                    <p className="text-xs text-gray-500 mt-1">Items Found</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-purple-700">{analysis.summary.photosAnalyzed}</p>
+                    <p className="text-xs text-gray-500 mt-1">Photos Analyzed</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-green-600">
+                      ${analysis.summary.estimatedTotalValue.low.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">Est. Low</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-green-600">
+                      ${analysis.summary.estimatedTotalValue.high.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">Est. High</p>
+                  </div>
+                  {analysis.summary.ebayAvailable && (
+                    <div>
+                      <p className="text-2xl font-bold text-emerald-600">
+                        ${analysis.summary.estimatedTotalValue.ebayMedian?.toLocaleString() || '—'}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">eBay Median</p>
+                    </div>
+                  )}
+                </div>
+                {analysis.summary.ebayAvailable && (
+                  <p className="text-xs text-center text-emerald-600 mt-3 font-medium">
+                    Prices validated against eBay sold listings
+                  </p>
+                )}
+              </div>
+
+              {/* Items list */}
+              {analysis.items.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">No valuable items identified in the photos.</p>
+              ) : (
+                <div className="space-y-3">
+                  {analysis.items.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="border border-gray-200 rounded-lg p-4 hover:border-purple-300 hover:shadow-sm transition-all"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <h4 className="font-semibold text-gray-900">{item.name}</h4>
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${categoryColors[item.category] || categoryColors.other}`}>
+                              {item.category}
+                            </span>
+                            <span className={`text-xs font-medium ${confidenceColors[item.confidence] || 'text-gray-500'}`}>
+                              {item.confidence} confidence
+                            </span>
+                          </div>
+
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600 mt-1">
+                            {item.brand && (
+                              <span className="flex items-center gap-1">
+                                <Tag className="w-3 h-3" /> {item.brand}
+                              </span>
+                            )}
+                            {item.era && (
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" /> {item.era}
+                              </span>
+                            )}
+                            {item.condition_estimate && item.condition_estimate !== 'unknown' && (
+                              <span className="flex items-center gap-1">
+                                <Package className="w-3 h-3" /> {item.condition_estimate}
+                              </span>
+                            )}
+                          </div>
+
+                          {item.notable_features && item.notable_features.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {item.notable_features.map((f, fIdx) => (
+                                <span key={fIdx} className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">
+                                  {f}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {item.confidence_reasoning && (
+                            <p className="text-xs text-gray-400 mt-2 italic">{item.confidence_reasoning}</p>
+                          )}
+                        </div>
+
+                        <div className="text-right flex-shrink-0 min-w-[120px]">
+                          {item.ebay && item.ebay.count > 0 ? (
+                            <div>
+                              <div className="flex items-center justify-end gap-1 text-emerald-600 font-bold text-lg">
+                                <DollarSign className="w-4 h-4" />
+                                <span>{item.ebay.median}</span>
+                              </div>
+                              <p className="text-xs text-gray-400">eBay median</p>
+                              <p className="text-xs text-gray-400">
+                                ${item.ebay.low}–${item.ebay.high}
+                              </p>
+                              <p className="text-xs text-emerald-500 font-medium">
+                                {item.ebay.count} sold
+                                {item.ebay.totalResults > item.ebay.count && ` of ${item.ebay.totalResults}`}
+                              </p>
+                              {item.estimated_value_hint && (
+                                <p className="text-xs text-gray-300 line-through mt-0.5">
+                                  AI est: {item.estimated_value_hint}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <>
+                              {item.estimated_value_hint && (
+                                <div>
+                                  <div className="flex items-center justify-end gap-1 text-green-600 font-bold">
+                                    <DollarSign className="w-4 h-4" />
+                                    <span>{item.estimated_value_hint.replace('$', '')}</span>
+                                  </div>
+                                  <p className="text-xs text-gray-400">AI estimate</p>
+                                </div>
+                              )}
+                            </>
+                          )}
+                          {item.search_query && (
+                            <a
+                              href={`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(item.search_query)}&LH_Complete=1&LH_Sold=1`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-500 hover:text-blue-700 mt-1 inline-block"
+                            >
+                              eBay comps &rarr;
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        {!loading && !error && analysis && (
+          <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
+            <p className="text-xs text-gray-500">
+              {analysis.summary.ebayAvailable
+                ? 'Prices from eBay sold listings. Click "eBay comps" for full details.'
+                : 'AI estimates are approximate. Click "eBay comps" to verify pricing.'}
+            </p>
+            <div className="flex gap-2">
+              <a
+                href={sale.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1"
+              >
+                <ExternalLink className="w-3 h-3" /> View Sale
+              </a>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SaleCard({ sale, companies, onClick, isExpanded, onGalleryClick, onAnalyzeClick, analyzing }) {
   const huntScore = calculateHuntScore(sale, companies);
   const companyData = companies[sale.company];
   const companyGrade = companyData?.grade || '?';
@@ -291,6 +529,21 @@ function SaleCard({ sale, companies, onClick, isExpanded, onGalleryClick }) {
           <GradeBadge grade={companyGrade} />
         </div>
         <div className="absolute bottom-3 right-3 flex gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAnalyzeClick(sale);
+            }}
+            disabled={analyzing}
+            className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white px-3 py-1 rounded-lg flex items-center gap-1 text-sm transition-colors"
+          >
+            {analyzing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Zap className="w-4 h-4" />
+            )}
+            Analyze
+          </button>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -384,6 +637,12 @@ export default function SalesClient({ initialSales = [], initialTimestamp = Date
   const [hideOnline, setHideOnline] = useState(false);
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'map'
   const [gallerySale, setGallerySale] = useState(null);
+  const [analyzingSaleId, setAnalyzingSaleId] = useState(null);
+  const [analysisSale, setAnalysisSale] = useState(null);
+  const [analysisData, setAnalysisData] = useState(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState(null);
+  const [analysisCache, setAnalysisCache] = useState({});
 
   const fetchSales = async () => {
     setLoading(true);
@@ -403,6 +662,50 @@ export default function SalesClient({ initialSales = [], initialTimestamp = Date
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAnalyzeSale = async (sale) => {
+    // Check cache first
+    if (analysisCache[sale.id]) {
+      setAnalysisSale(sale);
+      setAnalysisData(analysisCache[sale.id]);
+      setAnalysisError(null);
+      setAnalysisLoading(false);
+      return;
+    }
+
+    setAnalysisSale(sale);
+    setAnalyzingSaleId(sale.id);
+    setAnalysisLoading(true);
+    setAnalysisError(null);
+    setAnalysisData(null);
+
+    try {
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          saleId: sale.id,
+          saleTitle: sale.title,
+          saleAddress: sale.fullAddress,
+          maxPhotos: 10,
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || `Analysis failed (${response.status})`);
+      }
+
+      const data = await response.json();
+      setAnalysisData(data);
+      setAnalysisCache((prev) => ({ ...prev, [sale.id]: data }));
+    } catch (err) {
+      setAnalysisError(err.message);
+    } finally {
+      setAnalysisLoading(false);
+      setAnalyzingSaleId(null);
     }
   };
 
@@ -601,6 +904,8 @@ export default function SalesClient({ initialSales = [], initialTimestamp = Date
                 isExpanded={expandedSale === sale.id}
                 onClick={() => setExpandedSale(expandedSale === sale.id ? null : sale.id)}
                 onGalleryClick={(sale) => setGallerySale(sale)}
+                onAnalyzeClick={handleAnalyzeSale}
+                analyzing={analyzingSaleId === sale.id}
               />
             ))}
           </div>
@@ -633,6 +938,20 @@ export default function SalesClient({ initialSales = [], initialTimestamp = Date
         <ImageGallery
           sale={gallerySale}
           onClose={() => setGallerySale(null)}
+        />
+      )}
+
+      {analysisSale && (
+        <AnalysisResults
+          sale={analysisSale}
+          analysis={analysisData}
+          loading={analysisLoading}
+          error={analysisError}
+          onClose={() => {
+            setAnalysisSale(null);
+            setAnalysisData(null);
+            setAnalysisError(null);
+          }}
         />
       )}
 
