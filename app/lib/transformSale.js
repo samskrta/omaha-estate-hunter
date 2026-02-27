@@ -8,11 +8,18 @@ const saleTypeNames = {
   1024: 'Online Estate Sale',
 };
 
+// The API returns "local" dates with a misleading Z suffix (e.g., "2026-02-27T09:00:00Z").
+// These are already local times — strip the Z so JS doesn't apply UTC→local conversion.
+function parseLocalDate(value) {
+  if (!value) return null;
+  return new Date(value.replace(/Z$/, ''));
+}
+
 // Transform API data to our format
 export function transformSaleData(apiSale) {
   const now = new Date();
-  const firstStart = apiSale.firstLocalStartDate?._value ? new Date(apiSale.firstLocalStartDate._value) : null;
-  const lastEnd = apiSale.lastLocalEndDate?._value ? new Date(apiSale.lastLocalEndDate._value) : null;
+  const firstStart = apiSale.firstLocalStartDate?._value ? parseLocalDate(apiSale.firstLocalStartDate._value) : null;
+  const lastEnd = apiSale.lastLocalEndDate?._value ? parseLocalDate(apiSale.lastLocalEndDate._value) : null;
 
   const isOnline = apiSale.type === 64 || apiSale.type === 1024;
   const isGoingNow = firstStart && lastEnd && now >= firstStart && now <= lastEnd;
@@ -31,10 +38,10 @@ export function transformSaleData(apiSale) {
 
   let dateDisplay = '';
   if (apiSale.dates && apiSale.dates.length > 0) {
-    const firstDate = new Date(apiSale.dates[0].localStartDate._value);
-    const lastDate = new Date(apiSale.dates[apiSale.dates.length - 1].localEndDate._value);
+    const firstDate = parseLocalDate(apiSale.dates[0].localStartDate._value);
+    const lastDate = parseLocalDate(apiSale.dates[apiSale.dates.length - 1].localEndDate._value);
     const firstTime = formatTime(firstDate);
-    const lastTime = formatTime(new Date(apiSale.dates[0].localEndDate._value));
+    const lastTime = formatTime(parseLocalDate(apiSale.dates[0].localEndDate._value));
 
     if (isOnline && isGoingNow) {
       dateDisplay = `Ends ${formatDate(lastDate)} at ${formatTime(lastDate)}`;
@@ -49,8 +56,8 @@ export function transformSaleData(apiSale) {
   const schedule = [];
   if (apiSale.dates && apiSale.dates.length > 0) {
     for (const d of apiSale.dates) {
-      const dayStart = d.localStartDate?._value ? new Date(d.localStartDate._value) : null;
-      const dayEnd = d.localEndDate?._value ? new Date(d.localEndDate._value) : null;
+      const dayStart = d.localStartDate?._value ? parseLocalDate(d.localStartDate._value) : null;
+      const dayEnd = d.localEndDate?._value ? parseLocalDate(d.localEndDate._value) : null;
       if (dayStart && dayEnd) {
         schedule.push({
           date: dayStart.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
