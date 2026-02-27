@@ -280,6 +280,8 @@ const confidenceColors = {
 };
 
 function AnalysisResults({ sale, analysis, loading, error, onClose }) {
+  const [zoomedPhoto, setZoomedPhoto] = useState(null);
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
@@ -372,14 +374,17 @@ function AnalysisResults({ sale, analysis, loading, error, onClose }) {
                     >
                       <div className="flex items-start gap-3">
                         {item.photoUrl && (
-                          <div className="flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-gray-100">
+                          <button
+                            onClick={() => setZoomedPhoto(item.photoUrl)}
+                            className="flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-gray-100 cursor-zoom-in hover:ring-2 hover:ring-purple-400 transition-all"
+                          >
                             <img
                               src={item.photoUrl}
                               alt={item.name}
                               className="w-full h-full object-cover"
-                              onError={(e) => { e.target.style.display = 'none'; }}
+                              onError={(e) => { e.target.parentElement.style.display = 'none'; }}
                             />
-                          </div>
+                          </button>
                         )}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -500,6 +505,26 @@ function AnalysisResults({ sale, analysis, loading, error, onClose }) {
           </div>
         )}
       </div>
+
+      {zoomedPhoto && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-[60] cursor-zoom-out"
+          onClick={() => setZoomedPhoto(null)}
+        >
+          <button
+            onClick={() => setZoomedPhoto(null)}
+            className="absolute top-4 right-4 p-2 bg-black bg-opacity-50 hover:bg-opacity-80 rounded-full text-white transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={zoomedPhoto}
+            alt="Full size"
+            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
