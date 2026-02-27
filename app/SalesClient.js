@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Star, MapPin, Calendar, Camera, Building2, TrendingUp, Filter, ChevronDown, ChevronUp, Plus, Edit2, Trash2, X, Check, ExternalLink, Clock, RefreshCw, Loader2, Map as MapIcon, List, Image, Zap, DollarSign, Tag, Package, AlertCircle } from 'lucide-react';
+import { Star, MapPin, Calendar, Camera, Building2, TrendingUp, Filter, ChevronDown, ChevronUp, Plus, Edit2, Trash2, X, Check, ExternalLink, Clock, RefreshCw, Loader2, Map as MapIcon, List, Image, Zap, DollarSign, Tag, Package, AlertCircle, Compass, Navigation, CheckSquare, Square } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import ImageGallery from './ImageGallery';
+import { planRoute, getAvailableDates } from './lib/routePlanner';
+import { transformSaleData } from './lib/transformSale';
 
 // Dynamically import MapView to avoid SSR issues with Leaflet
 const MapView = dynamic(() => import('./MapView'), {
@@ -529,6 +531,281 @@ function AnalysisResults({ sale, analysis, loading, error, onClose }) {
   );
 }
 
+function TripPlanner({ sales, companies, onClose }) {
+  const availableDates = useMemo(() => getAvailableDates(sales), [sales]);
+  const [selectedDate, setSelectedDate] = useState(availableDates[0]?.dateKey || '');
+  const [selectedSaleIds, setSelectedSaleIds] = useState(new Set());
+  const [routeResult, setRouteResult] = useState(null);
+  const [useLocation, setUseLocation] = useState(false);
+  const [userLocation, setUserLocation] = useState(null);
+
+  // Sales available on selected date
+  const salesOnDate = useMemo(() => {
+    if (!selectedDate) return [];
+    return sales.filter(
+      (s) => !s.isOnline && s.schedule?.some((d) => d.dateKey === selectedDate)
+    );
+  }, [sales, selectedDate]);
+
+  // Auto-select all sales on date when date changes
+  const handleDateChange = (dateKey) => {
+    setSelectedDate(dateKey);
+    const onDate = sales.filter(
+      (s) => !s.isOnline && s.schedule?.some((d) => d.dateKey === dateKey)
+    );
+    setSelectedSaleIds(new Set(onDate.map((s) => s.id)));
+    setRouteResult(null);
+  };
+
+  const toggleSale = (saleId) => {
+    const next = new Set(selectedSaleIds);
+    if (next.has(saleId)) next.delete(saleId);
+    else next.add(saleId);
+    setSelectedSaleIds(next);
+    setRouteResult(null);
+  };
+
+  const handleGetLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setUserLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+          setUseLocation(true);
+        },
+        () => setUseLocation(false)
+      );
+    }
+  };
+
+  const handlePlanRoute = () => {
+    const selected = salesOnDate.filter((s) => selectedSaleIds.has(s.id));
+    const startPoint = useLocation && userLocation ? userLocation : null;
+    const result = planRoute(selected, selectedDate, startPoint);
+    setRouteResult(result);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="p-5 border-b border-gray-200 bg-gradient-to-r from-emerald-600 to-teal-700 text-white">
+          <div className="flex justify-between items-start">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Compass className="w-5 h-5" />
+                <h2 className="text-xl font-bold">Trip Planner</h2>
+              </div>
+              <p className="text-emerald-100 text-sm">Pick a date, select sales, get the optimal route</p>
+            </div>
+            <button onClick={onClose} className="p-2 hover:bg-white hover:bg-opacity-20 rounded-full">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5">
+          {/* Date picker */}
+          <div className="mb-5">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Trip Date</label>
+            <div className="flex flex-wrap gap-2">
+              {availableDates.map((d) => (
+                <button
+                  key={d.dateKey}
+                  onClick={() => handleDateChange(d.dateKey)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    selectedDate === d.dateKey
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {d.label}
+                  <span className="ml-1 text-xs opacity-75">({d.salesCount})</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Location option */}
+          <div className="mb-5 flex items-center gap-3">
+            <button
+              onClick={handleGetLocation}
+              className={`px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors ${
+                useLocation
+                  ? 'bg-emerald-100 text-emerald-700 border border-emerald-300'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <Navigation className="w-4 h-4" />
+              {useLocation ? 'Starting from your location' : 'Use my location as start'}
+            </button>
+          </div>
+
+          {/* Sales to visit */}
+          {selectedDate && (
+            <div className="mb-5">
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Sales on this date ({selectedSaleIds.size} of {salesOnDate.length} selected)
+                </label>
+                <button
+                  onClick={() => {
+                    if (selectedSaleIds.size === salesOnDate.length) {
+                      setSelectedSaleIds(new Set());
+                    } else {
+                      setSelectedSaleIds(new Set(salesOnDate.map((s) => s.id)));
+                    }
+                    setRouteResult(null);
+                  }}
+                  className="text-xs text-emerald-600 hover:text-emerald-800"
+                >
+                  {selectedSaleIds.size === salesOnDate.length ? 'Deselect all' : 'Select all'}
+                </button>
+              </div>
+              <div className="space-y-2 max-h-[30vh] overflow-y-auto">
+                {salesOnDate.map((sale) => {
+                  const daySchedule = sale.schedule.find((d) => d.dateKey === selectedDate);
+                  const huntScore = calculateHuntScore(sale, companies);
+                  const isSelected = selectedSaleIds.has(sale.id);
+                  return (
+                    <button
+                      key={sale.id}
+                      onClick={() => toggleSale(sale.id)}
+                      className={`w-full text-left p-3 rounded-lg border transition-all flex items-start gap-3 ${
+                        isSelected
+                          ? 'border-emerald-300 bg-emerald-50'
+                          : 'border-gray-200 bg-white hover:border-gray-300'
+                      }`}
+                    >
+                      {isSelected ? (
+                        <CheckSquare className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                      ) : (
+                        <Square className="w-5 h-5 text-gray-300 flex-shrink-0 mt-0.5" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-900 truncate">{sale.title}</span>
+                          <span className={`text-xs font-bold ${getHuntScoreColor(huntScore)}`}>{huntScore}</span>
+                        </div>
+                        <p className="text-sm text-gray-500 truncate">{sale.company}</p>
+                        <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {daySchedule?.open} – {daySchedule?.close}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />
+                            {sale.address}
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+                {salesOnDate.length === 0 && (
+                  <p className="text-center text-gray-400 py-4">No in-person sales on this date.</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Plan Route button */}
+          {selectedSaleIds.size >= 2 && (
+            <button
+              onClick={handlePlanRoute}
+              className="w-full py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium flex items-center justify-center gap-2 transition-colors mb-5"
+            >
+              <Compass className="w-5 h-5" />
+              Plan Route ({selectedSaleIds.size} stops)
+            </button>
+          )}
+
+          {/* Route Results */}
+          {routeResult && routeResult.route.length > 0 && (
+            <div>
+              {/* Route summary */}
+              <div className="mb-4 p-4 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-200">
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <p className="text-2xl font-bold text-emerald-700">{routeResult.route.length}</p>
+                    <p className="text-xs text-gray-500">Stops</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-emerald-700">{routeResult.totalMiles} mi</p>
+                    <p className="text-xs text-gray-500">Total Distance</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-emerald-700">
+                      {Math.floor(routeResult.totalDriveMinutes / 60) > 0 && `${Math.floor(routeResult.totalDriveMinutes / 60)}h `}
+                      {routeResult.totalDriveMinutes % 60}m
+                    </p>
+                    <p className="text-xs text-gray-500">Drive Time</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ordered stops */}
+              <div className="space-y-2 mb-4">
+                {routeResult.route.map((stop, idx) => (
+                  <div
+                    key={stop.id}
+                    className={`flex items-start gap-3 p-3 rounded-lg border ${
+                      stop.missedIt ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-white'
+                    }`}
+                  >
+                    <div className="flex-shrink-0 w-8 h-8 bg-emerald-600 text-white rounded-full flex items-center justify-center font-bold text-sm">
+                      {stop.routeOrder}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 truncate">{stop.title}</p>
+                      <p className="text-sm text-gray-500">{stop.fullAddress}</p>
+                      <div className="flex flex-wrap gap-3 text-xs mt-1">
+                        <span className="text-emerald-600 font-medium">
+                          Arrive {stop.arrivalTime}
+                        </span>
+                        <span className="text-gray-400">
+                          Open {stop.daySchedule.open} – {stop.daySchedule.close}
+                        </span>
+                        {idx > 0 && (
+                          <span className="text-gray-400">
+                            {stop.distanceFromPrev} mi • {stop.driveMinutes} min drive
+                          </span>
+                        )}
+                        {stop.waitMinutes > 0 && (
+                          <span className="text-yellow-600">
+                            {stop.waitMinutes} min wait
+                          </span>
+                        )}
+                        {stop.missedIt && (
+                          <span className="text-red-600 font-medium">
+                            Already closed — consider skipping
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Google Maps link */}
+              {routeResult.googleMapsUrl && (
+                <a
+                  href={routeResult.googleMapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Navigation className="w-5 h-5" />
+                  Open Route in Google Maps
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SaleCard({ sale, companies, onClick, isExpanded, onGalleryClick, onAnalyzeClick, analyzing }) {
   const huntScore = calculateHuntScore(sale, companies);
   const companyData = companies[sale.company];
@@ -630,6 +907,19 @@ function SaleCard({ sale, companies, onClick, isExpanded, onGalleryClick, onAnal
       {isExpanded && (
         <div className="px-4 pb-4 border-t border-gray-100 mt-2 pt-4">
           <p className="text-gray-700 mb-4">{sale.description}</p>
+          {sale.schedule && sale.schedule.length > 0 && (
+            <div className="mb-4">
+              <p className="text-sm font-medium text-gray-500 mb-2">Schedule</p>
+              <div className="flex flex-wrap gap-2">
+                {sale.schedule.map((day, idx) => (
+                  <div key={idx} className="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm">
+                    <span className="font-medium text-gray-800">{day.date}</span>
+                    <span className="text-gray-500 ml-2">{day.open} – {day.close}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
             <div>
               <span className="text-gray-500">Sale Type:</span>
@@ -665,6 +955,7 @@ export default function SalesClient({ initialSales = [], initialTimestamp = Date
   const [lastUpdated, setLastUpdated] = useState(new Date(initialTimestamp));
   const [companies, setCompanies] = useState(initialCompanies);
   const [showCompanyManager, setShowCompanyManager] = useState(false);
+  const [showTripPlanner, setShowTripPlanner] = useState(false);
   const [expandedSale, setExpandedSale] = useState(null);
   const [sortBy, setSortBy] = useState('score');
   const [filterCompany, setFilterCompany] = useState('all');
@@ -691,7 +982,7 @@ export default function SalesClient({ initialSales = [], initialTimestamp = Date
         throw new Error(data.message || 'Failed to fetch sales');
       }
 
-      setSales(data);
+      setSales(data.map(transformSaleData));
       setLastUpdated(new Date());
     } catch (err) {
       setError(err.message);
@@ -853,6 +1144,13 @@ export default function SalesClient({ initialSales = [], initialTimestamp = Date
                 <Star className="w-4 h-4" />
                 Companies ({ratedCount} rated{unratedCount > 0 && `, ${unratedCount} unrated`})
               </button>
+              <button
+                onClick={() => setShowTripPlanner(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg transition-colors"
+              >
+                <Compass className="w-4 h-4" />
+                Trip Planner
+              </button>
             </div>
             <div className="text-sm text-gray-600">
               Showing <strong>{processedSales.length}</strong> of {sales.length} sales
@@ -966,6 +1264,14 @@ export default function SalesClient({ initialSales = [], initialTimestamp = Date
           setCompanies={setCompanies}
           onClose={() => setShowCompanyManager(false)}
           allSaleCompanies={allCompanies}
+        />
+      )}
+
+      {showTripPlanner && (
+        <TripPlanner
+          sales={processedSales}
+          companies={companies}
+          onClose={() => setShowTripPlanner(false)}
         />
       )}
 
